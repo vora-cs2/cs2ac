@@ -1,0 +1,103 @@
+# Her gün: CS2 SDK'sı (s2sdk cs2 dalı), Metamod'un son sürümü ya da bu depodaki yama değiştiyse CS2AC'yi Windows ve Linux için
+# yeniden derler ve "derleme-<anahtar>" adıyla yayınlar. Sunucudaki panel en son yayını indirir, doğrular ve sunucu boşken kurar.
+name: Derle
+
+on:
+  schedule:
+    - cron: '17 */6 * * *'
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      zorla:
+        description: Anahtar aynı olsa da yeniden derle
+        type: boolean
+        default: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: derle
+  cancel-in-progress: false
+
+jobs:
+  girdi:
+    runs-on: ubuntu-latest
+    outputs:
+      anahtar: ${{ steps.g.outputs.anahtar }}
+      s2sdk: ${{ steps.g.outputs.s2sdk }}
+      metamod_build: ${{ steps.g.outputs.metamod_build }}
+      gerek: ${{ steps.v.outputs.gerek }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: g
+        run: python3 derle.py --girdi
+      - id: v
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if [ "${{ inputs.zorla }}" != "true" ] && gh release view "derleme-${{ steps.g.outputs.anahtar }}" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Aynı girdilerle yayın zaten var: derleme-${{ steps.g.outputs.anahtar }}"
+            echo "gerek=hayir" >> "$GITHUB_OUTPUT"
+          else
+            echo "gerek=evet" >> "$GITHUB_OUTPUT"
+          fi
+
+  windows:
+    needs: girdi
+    if: needs.girdi.outputs.gerek == 'evet'
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python derle.py --platform windows --s2sdk ${{ needs.girdi.outputs.s2sdk }} --metamod-build ${{ needs.girdi.outputs.metamod_build }} --calisma C:\c --cikti cikti
+      - uses: actions/upload-artifact@v4
+        with:
+          name: windows
+          path: cikti/
+          if-no-files-found: error
+
+  linux:
+    needs: girdi
+    if: needs.girdi.outputs.gerek == 'evet'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - run: python3 derle.py --platform linux --s2sdk ${{ needs.girdi.outputs.s2sdk }} --metamod-build ${{ needs.girdi.outputs.metamod_build }} --calisma calisma --cikti cikti
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux
+          path: cikti/
+          if-no-files-found: error
+
+  yayinla:
+    needs: [girdi, windows, linux]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: cikti
+          merge-multiple: true
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          ANAHTAR: ${{ needs.girdi.outputs.anahtar }}
+        run: |
+          python3 - <<'PY'
+          import json, os
+          w = json.load(open('cikti/surum-windows.json', encoding='utf-8'))
+          l = json.load(open('cikti/surum-linux.json', encoding='utf-8'))
+          assert w['anahtar'] == l['anahtar'] == os.environ['ANAHTAR']
+          ortak = {k: w[k] for k in ('anahtar', 'cs2ac', 's2sdk', 'metamod_build', 'metamod_commit', 'yama', 'gamedata', 'betik')}
+          ortak['platformlar'] = {p['platform']: {'dosya': p['dosya'], 'sha256': p['sha256'], 'zip': f"cs2ac-{p['platform']}.zip"} for p in (w, l)}
+          ortak['tarih'] = max(w['tarih'], l['tarih'])
+          json.dump(ortak, open('cikti/surum.json', 'w', encoding='utf-8'), indent=2, ensure_ascii=False)
+          with open('notlar.md', 'w', encoding='utf-8') as f:
+              f.write(f"CS2AC {ortak['cs2ac']} · s2sdk `{ortak['s2sdk'][:10]}` · Metamod git{ortak['metamod_build']} (`{ortak['metamod_commit'][:10]}`)\n")
+          PY
+          gh release create "derleme-$ANAHTAR" --repo "$GITHUB_REPOSITORY" --title "Derleme $ANAHTAR" --notes-file notlar.md \
+            cikti/cs2ac-windows.zip cikti/cs2ac-linux.zip cikti/surum.json
