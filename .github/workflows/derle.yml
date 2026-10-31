@@ -68,7 +68,7 @@ jobs:
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@v4
-      - run: python3 derle.py --platform linux --s2sdk ${{ needs.girdi.outputs.s2sdk }} --metamod-build ${{ needs.girdi.outputs.metamod_build }} --calisma calisma --cikti cikti
+      - run: python3 derle.py --platform linux --s2sdk ${{ needs.girdi.outputs.s2sdk }} --metamod-build ${{ needs.girdi.outputs.metamod_build }} --calisma "${{ runner.temp }}/c" --cikti cikti
       - uses: actions/upload-artifact@v4
         with:
           name: linux

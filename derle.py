@@ -123,7 +123,13 @@ def derle(args):
             sil(yol)
     depo_commit(os.path.join(kaynak, 'hl2sdk-cs2'), S2SDK_DEPO, g['s2sdk'])
     g['metamod_commit'] = metamod(os.path.join(kaynak, 'metamod-source'), g['metamod_build'])
+    # Çalışma klasörü başka bir deponun içindeyse (CI'da bu depo) git apply yolları o deponun köküne göre çözer ve yamayı
+    # sessizce atlar: geçici depo kur, uygula, kaldır; sonra yamanın gerçekten uygulandığını denetle.
+    calistir(['git', 'init', '-q'], cwd=kaynak)
     calistir(['git', 'apply', '--whitespace=nowarn', YAMA], cwd=kaynak)
+    sil(os.path.join(kaynak, '.git'))
+    if not os.path.isfile(os.path.join(kaynak, 'src', 'steam_context.h')):
+        raise SystemExit('Yama uygulanmadı.')
     shutil.copyfile(GAMEDATA, os.path.join(kaynak, 'gamedata', 'cs2ac.games.txt'))
 
     if args.platform == 'windows':
