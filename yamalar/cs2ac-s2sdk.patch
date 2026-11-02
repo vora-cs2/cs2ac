@@ -20,6 +20,20 @@ index 287027f..10c1cfd 100644
        os.path.join(sdk['path'], 'public', 'tier0', 'memoverride.cpp'),
      ]
      self.sdk_helpers.configureCxx(context, binary, sdk)
+diff --git a/AMBuilder b/AMBuilder
+--- a/AMBuilder
++++ b/AMBuilder
+@@ -78,6 +78,10 @@ binary.compiler.cxxincludes += [
+ binary.sources += [
+   os.path.join(sdk['path'], 'entity2', 'entityidentity.cpp'),
+   os.path.join(sdk['path'], 'entity2', 'entitysystem.cpp'),
+   os.path.join(builder.sourcePath, 'src', 'vendor', 'miniz.c'),
+ ]
++# s2sdk 36d07e8 (2026-11-02): CEntitySystem::CreateEntityKeyValues / SpawnEntities CEntityKeyValues'u kullanıyor;
++# gövdesi entity2/entitykeyvalues.cpp'de. Derlenmezse Windows bağlayıcısı "unresolved external" veriyordu.
++if os.path.isfile(os.path.join(sdk['path'], 'entity2', 'entitykeyvalues.cpp')):
++  binary.sources += [os.path.join(sdk['path'], 'entity2', 'entitykeyvalues.cpp')]
+ binary.compiler.defines += ['MINIZ_NO_ARCHIVE_WRITING_APIS', 'MINIZ_NO_ZLIB_APIS']
 diff --git a/src/clientcvar/client_cvar_value.cpp b/src/clientcvar/client_cvar_value.cpp
 index b77ac9b..dcd9514 100644
 --- a/src/clientcvar/client_cvar_value.cpp
