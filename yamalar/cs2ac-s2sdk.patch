@@ -21,11 +21,10 @@ index 287027f..10c1cfd 100644
      ]
      self.sdk_helpers.configureCxx(context, binary, sdk)
 diff --git a/AMBuilder b/AMBuilder
+index 15af9b6..bb7ad00 100644
 --- a/AMBuilder
 +++ b/AMBuilder
-@@ -78,6 +78,12 @@ binary.compiler.cxxincludes += [
- binary.sources += [
-   os.path.join(sdk['path'], 'entity2', 'entityidentity.cpp'),
+@@ -80,6 +80,12 @@ binary.sources += [
    os.path.join(sdk['path'], 'entity2', 'entitysystem.cpp'),
    os.path.join(builder.sourcePath, 'src', 'vendor', 'miniz.c'),
  ]
@@ -36,8 +35,10 @@ diff --git a/AMBuilder b/AMBuilder
 +  if os.path.isfile(os.path.join(sdk['path'], *extra)):
 +    binary.sources += [os.path.join(sdk['path'], *extra)]
  binary.compiler.defines += ['MINIZ_NO_ARCHIVE_WRITING_APIS', 'MINIZ_NO_ZLIB_APIS']
+ binary.sources += collectPluginSources(cxx.target.platform)
+ binary.compiler.postlink.insert(0, protobuf)
 diff --git a/src/clientcvar/client_cvar_value.cpp b/src/clientcvar/client_cvar_value.cpp
-index b77ac9b..dcd9514 100644
+index b77ac9b..fdd7ae0 100644
 --- a/src/clientcvar/client_cvar_value.cpp
 +++ b/src/clientcvar/client_cvar_value.cpp
 @@ -16,11 +16,12 @@
@@ -105,9 +106,12 @@ index b77ac9b..dcd9514 100644
  	{
  		AddMissingRequirement(missing, "Metamod's hook service is unavailable.");
  	}
-@@ -159,16 +161,10 @@ bool ClientCvarValue::Load(IVEngineServer2 *pEngineServer, INetworkMessages *pNe
+@@ -157,18 +159,12 @@ bool ClientCvarValue::Load(IVEngineServer2 *pEngineServer, INetworkMessages *pNe
+ 		return false;
+ 	}
  
- 	INetworkMessageInternal *pGetCvarValueMessage = pNetworkMessages->FindNetworkMessagePartial("CSVCMsg_GetCvarValue");
+-	INetworkMessageInternal *pGetCvarValueMessage = pNetworkMessages->FindNetworkMessagePartial("CSVCMsg_GetCvarValue");
++	NetMessageInfo_t *pGetCvarValueMessage = pNetworkMessages->FindNetworkMessagePartial("CSVCMsg_GetCvarValue");
  	void *pCServerSideClientVTable = DynLibUtils::CModule(pEngineServer).GetVirtualTableByName("CServerSideClient");
 -	SH_MANUALHOOK_RECONFIGURE(OnProcessRespondCvarValue, g_pGameConfig->GetOffset("ProcessRespondCvarValue"), 0, 0);
 -
@@ -180,7 +184,7 @@ index b77ac9b..dcd9514 100644
  
  void ClientCvarValue::OnClientFullyConnected(CPlayerSlot nSlot, bool bFakePlayer)
 diff --git a/src/clientcvar/client_cvar_value.h b/src/clientcvar/client_cvar_value.h
-index bdb8ea9..aa475dd 100644
+index bdb8ea9..86a17e0 100644
 --- a/src/clientcvar/client_cvar_value.h
 +++ b/src/clientcvar/client_cvar_value.h
 @@ -18,7 +18,8 @@
@@ -193,7 +197,12 @@ index bdb8ea9..aa475dd 100644
  #include <netmessages.pb.h>
  #include <array>
  #include <chrono>
-@@ -33,6 +34,8 @@ class INetworkMessageInternal;
+@@ -29,10 +30,12 @@
+ #include <utility>
+ 
+ class IGameEventSystem;
+-class INetworkMessageInternal;
++struct NetMessageInfo_t;
  class INetworkMessages;
  class IVEngineServer2;
  
@@ -202,7 +211,7 @@ index bdb8ea9..aa475dd 100644
  class ClientCvarValue final : public IClientCvarValue
  {
  public:
-@@ -49,12 +52,16 @@ public:
+@@ -49,17 +52,21 @@ public:
  	}
  
  private:
@@ -221,6 +230,12 @@ index bdb8ea9..aa475dd 100644
  	int m_iClientSlotOffset = -1;
  	uint32_t m_iQueryCvarCookieCounter = 0;
  	IVEngineServer2 *m_pEngineServer = nullptr;
+ 	IGameEventSystem *m_pGameEventSystem = nullptr;
+-	INetworkMessageInternal *m_pGetCvarValueMessage = nullptr;
++	NetMessageInfo_t *m_pGetCvarValueMessage = nullptr;
+ 
+ private: // IClientCvarValue
+ 	bool QueryCvarValue(CPlayerSlot nSlot, const char *pszCvarName, CvarValueCallback callback) override;
 diff --git a/src/common.h b/src/common.h
 index 1d2866e..b2b7962 100644
 --- a/src/common.h
@@ -1292,7 +1307,7 @@ index 2f96b28..6ddadf8 100644
  #include <string>
  #include <unordered_map>
 diff --git a/src/utils/hooks.cpp b/src/utils/hooks.cpp
-index 0340f6f..9c83810 100644
+index 0340f6f..73eda1f 100644
 --- a/src/utils/hooks.cpp
 +++ b/src/utils/hooks.cpp
 @@ -9,31 +9,16 @@
@@ -1338,7 +1353,7 @@ index 0340f6f..9c83810 100644
  
 +	KHook::Return<bool> HookFireEventBefore(IGameEventManager2 *, IGameEvent *event, bool);
 +	KHook::Return<bool> HookFireEventAfter(IGameEventManager2 *, IGameEvent *, bool);
-+	KHook::Return<void> HookPostEvent(IGameEventSystem *, CSplitScreenSlot, bool, int, const uint64 *, INetworkMessageInternal *event,
++	KHook::Return<void> HookPostEvent(IGameEventSystem *, CSplitScreenSlot, bool, int, const uint64 *, NetMessageInfo_t *event,
 +									  const CNetMessage *data, unsigned long, NetChannelBufType_t);
 +	KHook::Return<void> HookTeleport(CCSPlayerPawn *pawn, const Vector *origin, const QAngle *angles, const Vector *velocity);
 +	KHook::Return<void> HookGameFrameBefore(ISource2Server *, bool, bool, bool);
@@ -1356,7 +1371,7 @@ index 0340f6f..9c83810 100644
 +	KHook::Virtual<ISource2GameClients, void, CPlayerSlot, ENetworkDisconnectionReason, const char *, uint64, const char *>
 +		clientDisconnectHook(nullptr, HookClientDisconnect);
 +	KHook::Virtual<IGameEventManager2, bool, IGameEvent *, bool> fireEventHook(HookFireEventBefore, HookFireEventAfter);
-+	KHook::Virtual<IGameEventSystem, void, CSplitScreenSlot, bool, int, const uint64 *, INetworkMessageInternal *, const CNetMessage *,
++	KHook::Virtual<IGameEventSystem, void, CSplitScreenSlot, bool, int, const uint64 *, NetMessageInfo_t *, const CNetMessage *,
 +				   unsigned long, NetChannelBufType_t>
 +		postEventHook(HookPostEvent, nullptr);
 +
@@ -1387,7 +1402,7 @@ index 0340f6f..9c83810 100644
  
 -	void HookPostEvent(CSplitScreenSlot, bool, int, const uint64 *, INetworkMessageInternal *event, const CNetMessage *data, unsigned long,
 -					   NetChannelBufType_t)
-+	KHook::Return<void> HookPostEvent(IGameEventSystem *, CSplitScreenSlot, bool, int, const uint64 *, INetworkMessageInternal *event,
++	KHook::Return<void> HookPostEvent(IGameEventSystem *, CSplitScreenSlot, bool, int, const uint64 *, NetMessageInfo_t *event,
 +									  const CNetMessage *data, unsigned long, NetChannelBufType_t)
  	{
  		if (!g_CS2AC.IsLoaded() || !event || !data)
