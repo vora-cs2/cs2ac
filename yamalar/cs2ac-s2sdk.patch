@@ -1307,7 +1307,7 @@ index 2f96b28..6ddadf8 100644
  #include <string>
  #include <unordered_map>
 diff --git a/src/utils/hooks.cpp b/src/utils/hooks.cpp
-index 0340f6f..73eda1f 100644
+index 0340f6f..caf0c18 100644
 --- a/src/utils/hooks.cpp
 +++ b/src/utils/hooks.cpp
 @@ -9,31 +9,16 @@
@@ -1392,7 +1392,7 @@ index 0340f6f..73eda1f 100644
  		}
  		PendingGameEvent pending {};
  		if (IsConsumedEvent(event))
-@@ -83,33 +92,33 @@ namespace
+@@ -83,33 +92,34 @@ namespace
  			pending = {interfaces::pGameEventManager->DuplicateEvent(event), ResolveEventPlayer(event)};
  		}
  		pendingGameEvents.push_back(pending);
@@ -1410,7 +1410,9 @@ index 0340f6f..73eda1f 100644
 -			RETURN_META(MRES_IGNORED);
 +			return {KHook::Action::Ignore};
  		}
- 		auto *info = event->GetNetMessageInfo();
+-		auto *info = event->GetNetMessageInfo();
++		// Topluluk: yeni s2sdk API-sinde kancanin aldigi nesne zaten NetMessageInfo_t.
++		auto *info = event;
  		if (!info)
  		{
 -			RETURN_META(MRES_IGNORED);
@@ -1434,7 +1436,7 @@ index 0340f6f..73eda1f 100644
  		}
  		PendingGameEvent pending {};
  		if (!pendingGameEvents.empty())
-@@ -128,22 +137,21 @@ namespace
+@@ -128,22 +138,21 @@ namespace
  			}
  			interfaces::pGameEventManager->FreeEvent(pending.event);
  		}
@@ -1461,7 +1463,7 @@ index 0340f6f..73eda1f 100644
  	}
  
  	bool RemoveTeleportHook(CPlayerSlot slot)
-@@ -152,12 +160,8 @@ namespace
+@@ -152,12 +161,8 @@ namespace
  		{
  			return true;
  		}
@@ -1476,7 +1478,7 @@ index 0340f6f..73eda1f 100644
  		return true;
  	}
  
-@@ -171,33 +175,30 @@ namespace
+@@ -171,33 +176,30 @@ namespace
  		{
  			return false;
  		}
@@ -1518,7 +1520,7 @@ index 0340f6f..73eda1f 100644
  		}
  		if (auto *globals = g_pCS2ACUtils->GetGlobals())
  		{
-@@ -206,36 +207,36 @@ namespace
+@@ -206,36 +208,36 @@ namespace
  		g_CS2AC.OnGameFrame(simulating);
  		ProcessTimers();
  		MovementEventService::ActiveCheck();
@@ -1564,7 +1566,7 @@ index 0340f6f..73eda1f 100644
  		}
  		g_pCS2ACPlayerManager->OnClientActive(slot, xuid);
  		auto *player = g_pCS2ACPlayerManager->ToPlayer(slot);
-@@ -243,60 +244,55 @@ namespace
+@@ -243,60 +245,55 @@ namespace
  		{
  			AddTeleportHook(player);
  		}
@@ -1652,7 +1654,7 @@ index 0340f6f..73eda1f 100644
  	return true;
  }
  
-@@ -325,29 +321,16 @@ bool hooks::ResetMap()
+@@ -325,29 +322,16 @@ bool hooks::ResetMap()
  bool hooks::Cleanup()
  {
  	bool removed = ResetMap();
